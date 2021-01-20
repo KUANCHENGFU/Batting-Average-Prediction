@@ -1,0 +1,186 @@
+---
+title: "STAT 2650 Final Project"
+author: 'Name: Kuan-Cheng Fu'
+date: 'Date: 12/01/2020'
+output:
+  html_document: default
+  pdf_document: default
+---
+
+```{r,include=F}
+library(latexpdf)
+library(ggplot2)
+library(mvtnorm)
+library(MCMCpack)
+```
+
+
+# Problem 1
+After excluding the players whose at bats, AB, either in the first or second period, are no larger than 10 ($N_{i1}\leq10$ or $N_{i2}\leq10$), 491 players are left in the analysis.
+
+```{r 1}
+raw_data <- read.table("data/Bat.dat")
+data <- raw_data[raw_data$AB.1>10 & raw_data$AB.2>10,]
+data_shape <- as.data.frame(dim(data)[1])
+colnames(data_shape) <- "numbers"
+rownames(data_shape) <- "players"
+data_shape
+```
+
+\pagebreak
+
+# Problem 2
+1. Data: $H_{i1} \sim Bin(N_{i1},p_{i})$  
+2. Prior: $p_{i} \sim beta(a,b)$  
+3. Posterior: $p_{i}|H_{i1} \sim beta(H_{i1}+a,N_{i1}-H_{i1}+b)$  
+4. Regarding the parameters $a$ and $b$ of our prior distribution, $a$ and $b$ will be set to equal $1$ and $4$ respectively since we believe that the mean of batting average is approximately equal to $0.2$ (i.e., $E(p_{i})=\frac{a}{a+b}=0.2$). After that, by using Monte Carlo technique, we will sample $5000$ values of each $p_{i}$ from our posterior distributions. Finally, the estimate of of each $p_{i}$ will be obtained by averaging its $5000$ sample values.
+
+```{r 2.1}
+# data information
+data_hitting_ability.1 <- matrix(0,dim(data)[1],1)
+colnames(data_hitting_ability.1) <- c("Batting Average")
+
+for (i in 1:dim(data)[1]) {
+  data_hitting_ability.1[i,1] <- data$H.1[i]/data$AB.1[i]
+}
+summary(data_hitting_ability.1)
+```
+
+```{r 2.2}
+# monte carlo
+posterior_hitting_ability_p2 <- matrix(0,dim(data)[1],1)
+colnames(posterior_hitting_ability_p2) <- c("Batting Average")
+
+set.seed(1)
+for (i in 1:dim(data)[1]) {
+  a <- 1
+  b <- 4
+  p.mc5000 <- rbeta(5000,data$H.1[i]+a,data$AB.1[i]-data$H.1[i]+b)
+  posterior_hitting_ability_p2[i,1] <- mean(p.mc5000)
+}
+```
+
+\pagebreak
+
+# Problem 3
+1. Data: $X_{i1} \sim N(\theta_{i},\sigma_{i1}^2)$, $\sigma_{i1}^2=\frac{1}{4N_{i1}}$  
+2. Prior: $\theta_{i} \sim N(\mu,\tau^2)$; $\mu \sim N(\mu_0,\gamma_0^2)$; $\tau^2 \sim Inverse-gamma(\frac{\eta_0}{2},\frac{\eta_0\tau_0^2}{2})$  
+3. $p(\theta_{1},...,\theta_{n},\mu,\tau^2|X_{11},...,X_{n1})$  
+$\propto p(X_{11},...,X_{n1}|\theta_{1},...,\theta_{n},\mu,\tau^2) \times p(\theta_{1},...,\theta_{n}|\mu,\tau^2) \times p(\mu) \times p(\tau^2)$  
+$\propto \prod_{k=1}^n p(X_{k1}|\theta_{k},\sigma_{k1}^2) \times \prod_{k=1}^n p(\theta_{k}|\mu,\tau^2) \times p(\mu) \times p(\tau^2)$  
+4. Posterior of $\theta_{i}$: $p(\theta_{i}|\mu,\tau^2,X_{11},...,X_{n1}) \propto p(X_{i1}|\theta_{i},\sigma_{i1}^2)p(\theta_{i}|\mu,\tau^2)$  
+$\Rightarrow \theta_{i}|\mu,\tau^2,X_{11},...,X_{n1} \sim N(\frac{\frac{X_{i1}}{\sigma_{i1}^2}+\frac{\mu}{\tau^2}}{\frac{1}{\sigma_{i1}^2}+\frac{1}{\tau^2}},\frac{1}{\frac{1}{\sigma_{i1}^2}+\frac{1}{\tau^2}})$  
+5. Posterior of $\mu$: $p(\mu|\theta_{1},...,\theta_{n},\tau^2,X_{11},...,X_{n1}) \propto \prod_{k=1}^n p(\theta_{k}|\mu,\tau^2) \times p(\mu)$  
+$\Rightarrow \mu|\theta_{1},...,\theta_{n},\tau^2,X_{11},...,X_{n1} \sim N(\frac{\frac{n\bar{\theta}}{\tau^2}+\frac{\mu_0}{\gamma_0^2}}{\frac{n}{\tau^2}+\frac{1}{\gamma_0^2}},\frac{1}{\frac{n}{\tau^2}+\frac{1}{\gamma_0^2}})$  
+6. Posterior of $\tau^2$: $p(\tau^2|\theta_{1},...,\theta_{n},\mu,X_{11},...,X_{n1}) \propto \prod_{k=1}^n p(\theta_{k}|\mu,\tau^2) \times p(\tau^2)$  
+$\Rightarrow \tau^2|\theta_{1},...,\theta_{n},\mu,X_{11},...,X_{n1} \sim Inverse-gamma(\frac{\eta_0+n}{2},,\frac{\eta_0\tau_0^2+\sum_{k=1}^n (\theta_{k}-\mu)^2}{2})$  
+7. Regarding the parameters $\mu_0$ and $\gamma_0^2$ of our prior distribution of $\mu$, $\mu_0$ and $\gamma_0^2$ will be set to equal $0.4$ and $0.01$ respectively since the mean of $X_{i1}$ is approximately equal to $0.4$ and the prior probability that $\mu$ is in the interval $(0.2, 0.6)$ is about $95\%$. Besides, regarding the parameters $\eta_0$ and $\tau_0^2$ of our prior distribution of $\tau$, $\eta_0$ and $\tau_0^2$ will be both set to equal $1$ which represents weak prior information. Similarly, we will sample $5000$ values of each $\theta_{i}$ from our posterior distributions. Finally, after transforming, the estimate of of each $p_{i}$ will be obtained by averaging its $5000$ sample values.
+
+```{r 3.1}
+data$X <- 0
+data$var <- 0
+for (i in 1:dim(data)[1]) {
+  value <- (data$H.1[i]+0.25)/(data$AB.1[i]+0.5)
+  data$X[i] <- asin(sqrt(value))
+  data$var[i] <- 1/(4*data$AB.1[i])
+}
+```
+
+```{r 3.2}
+# weakly informative priors
+eta0 <- 1 ; t20 <- 1
+mu0 <- 0.4 ; g20 <- 0.01
+
+# starting values
+m <- dim(data)[1]
+n <- 1
+theta <- ybar <- data$X
+sigma2 <- data$var
+mu <- mean(theta)
+tau2 <- var(theta)
+
+# setup MCMC
+set.seed(1)
+S <- 5000
+THETA <- matrix(nrow=S,ncol=m)
+MST <- matrix(nrow=S,ncol=2)
+```
+
+```{r 3.3}
+# MCMC algorithm
+for(s in 1:S) 
+{
+  # sample new values of the thetas
+  for(j in 1:m) 
+  {
+    vtheta <- 1/(n/sigma2[j]+1/tau2)
+    etheta <- vtheta*(ybar[j]*n/sigma2[j]+mu/tau2)
+    theta[j] <- rnorm(1,etheta,sqrt(vtheta))
+   }
+
+  # sample a new value of mu
+  vmu <- 1/(m/tau2+1/g20)
+  emu <- vmu*(m*mean(theta)/tau2+mu0/g20)
+  mu <- rnorm(1,emu,sqrt(vmu)) 
+
+  # sample a new value of tau2
+  etam <- eta0+m
+  ss <- eta0*t20+sum((theta-mu)^2)
+  tau2 <- 1/rgamma(1,etam/2,ss/2)
+
+  # store results
+  THETA[s,] <- theta
+  MST[s,] <- c(mu,tau2)
+} 
+
+mcmc <- list(THETA=THETA,MST=MST)
+theta.mc5000 <- apply(THETA, 2, mean)
+posterior_hitting_ability_p3 <- (sin(theta.mc5000))^2
+```
+
+# Problem 4
+The information and histograms of our estimates $\frac{H_{i2}}{N_{i2}}$ from Problem 2 and Problem 3 are presented below.
+
+```{r 4.1}
+# estimates (Problem 2)
+summary(posterior_hitting_ability_p2)
+```
+
+```{r 4.2}
+# histogram (Problem 2)
+hist(posterior_hitting_ability_p2,main=expression("Posterior "~p[i]),
+     xlab="Batting Average",breaks=25)
+```
+
+```{r 4.3}
+# estimates (Problem 3)
+posterior_hitting_ability_p3 <- matrix(posterior_hitting_ability_p3,dim(data)[1],1)
+colnames(posterior_hitting_ability_p3) <- c("Batting Average")
+summary(posterior_hitting_ability_p3)
+```
+ 
+```{r 4.4}
+# histogram (Problem 3)
+hist(posterior_hitting_ability_p3,main=expression("Posterior "~p[i]),
+     xlab="Batting Average",breaks=25)
+```
+
+# Problem 5
+The MSE of the estimates from Problem 2 is slightly larger than the MSE of the estimates from Problem 3. We believe that the reason for this is because the variance of the estimates from Problem 3 is smaller than the variance of the estimates from Problem 2 and the biases of the estimates from Problem 2 and Problem 3 are similar based on the information and histograms in Problem 4.
+
+```{r 5}
+data_hitting_ability.2 <- matrix(0,dim(data)[1],1)
+colnames(data_hitting_ability.2) <- c("Batting Average")
+
+for (i in 1:dim(data)[1]) {
+  data_hitting_ability.2[i,1] <- data$H.2[i]/data$AB.2[i]
+}
+
+#MSE
+mse2 <- sum((posterior_hitting_ability_p2-data_hitting_ability.2)^2)/nrow(data) 
+mse3 <- sum((posterior_hitting_ability_p3-data_hitting_ability.2)^2)/nrow(data)
+MSE <- matrix(c(mse2,mse3),1,2)
+rownames(MSE) <- c("MSE")
+colnames(MSE) <- c("Problem 2","Problem 3")
+MSE
+```

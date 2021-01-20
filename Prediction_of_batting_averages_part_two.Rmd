@@ -1,0 +1,173 @@
+---
+output:
+  html_document: default
+  pdf_document: default
+---
+
+```{r,include=F}
+library(latexpdf)
+library(ggplot2)
+library(mvtnorm)
+library(MCMCpack)
+```
+
+
+# Problem 6.1 (nonpitchers)
+In this case, there are 431 nonpitchers.
+
+```{r 1}
+raw_data <- read.table("data/Bat.dat")
+data <- subset(raw_data[raw_data$AB.1>10 & raw_data$AB.2>10,],Pitcher==0)
+```
+
+# Problem 6.2 (nonpitchers)
+1. The Bayesian model in this case is the same as the one in Problem 2.  
+2. In this case, $a$ and $b$ will also be set to equal $1$ and $4$ respectively. Besides, the process of how we estimate $p_{i}$ is also the same as the one in Problem 2.
+
+```{r 2.1}
+# data information
+data_hitting_ability.1 <- matrix(0,dim(data)[1],1)
+colnames(data_hitting_ability.1) <- c("Batting Average")
+
+for (i in 1:dim(data)[1]) {
+  data_hitting_ability.1[i,1] <- data$H.1[i]/data$AB.1[i]
+}
+summary(data_hitting_ability.1)
+```
+
+```{r 2.2}
+# monte carlo
+posterior_hitting_ability_p2 <- matrix(0,dim(data)[1],1)
+colnames(posterior_hitting_ability_p2) <- c("Batting Average")
+
+set.seed(1)
+for (i in 1:dim(data)[1]) {
+  a <- 1
+  b <- 4
+  p.mc5000 <- rbeta(5000,data$H.1[i]+a,data$AB.1[i]-data$H.1[i]+b)
+  posterior_hitting_ability_p2[i,1] <- mean(p.mc5000)
+}
+```
+
+\pagebreak
+
+# Problem 6.3 (nonpitchers)
+1. The Bayesian hierarchical model in this case is the same as the one in Problem 3. 
+2. $\mu_0$ and $\gamma_0^2$ will also be set to equal $0.4$ and $0.01$ respectively while $\eta_0$ and $\tau_0^2$ will also be both set to equal $1$. Besides, the process of how we estimate $p_{i}$ is also the same as the one in Problem 3.
+
+```{r 3.1}
+data$X <- 0
+data$var <- 0
+for (i in 1:dim(data)[1]) {
+  value <- (data$H.1[i]+0.25)/(data$AB.1[i]+0.5)
+  data$X[i] <- asin(sqrt(value))
+  data$var[i] <- 1/(4*data$AB.1[i])
+}
+```
+
+```{r 3.2}
+# weakly informative priors
+eta0 <- 1 ; t20 <- 1
+mu0 <- 0.4 ; g20 <- 0.01
+
+# starting values
+m <- dim(data)[1]
+n <- 1
+theta <- ybar <- data$X
+sigma2 <- data$var
+mu <- mean(theta)
+tau2 <- var(theta)
+
+# setup MCMC
+set.seed(1)
+S <- 5000
+THETA <- matrix(nrow=S,ncol=m)
+MST <- matrix(nrow=S,ncol=2)
+```
+
+\pagebreak
+
+```{r 3.3}
+# MCMC algorithm
+for(s in 1:S) 
+{
+  # sample new values of the thetas
+  for(j in 1:m) 
+  {
+    vtheta <- 1/(n/sigma2[j]+1/tau2)
+    etheta <- vtheta*(ybar[j]*n/sigma2[j]+mu/tau2)
+    theta[j] <- rnorm(1,etheta,sqrt(vtheta))
+   }
+
+  # sample a new value of mu
+  vmu <- 1/(m/tau2+1/g20)
+  emu <- vmu*(m*mean(theta)/tau2+mu0/g20)
+  mu <- rnorm(1,emu,sqrt(vmu)) 
+
+  # sample a new value of tau2
+  etam <- eta0+m
+  ss <- eta0*t20+sum((theta-mu)^2)
+  tau2 <- 1/rgamma(1,etam/2,ss/2)
+
+  # store results
+  THETA[s,] <- theta
+  MST[s,] <- c(mu,tau2)
+} 
+
+mcmc <- list(THETA=THETA,MST=MST)
+theta.mc5000 <- apply(THETA, 2, mean)
+posterior_hitting_ability_p3 <- (sin(theta.mc5000))^2
+```
+
+\pagebreak
+
+# Problem 6.4 (nonpitchers)
+The information and histograms of our estimates $\frac{H_{i2}}{N_{i2}}$ from Problem 6.2 (nonpitchers) and Problem 6.3 (nonpitchers) are presented below.
+
+```{r 4.1}
+# estimates (Problem 2)
+summary(posterior_hitting_ability_p2)
+```
+
+```{r 4.2}
+# histogram (Problem 2)
+hist(posterior_hitting_ability_p2,main=expression("Posterior "~p[i]),
+     xlab="Batting Average",breaks=25)
+```
+
+\pagebreak
+
+```{r 4.3}
+# estimates (Problem 3)
+posterior_hitting_ability_p3 <- matrix(posterior_hitting_ability_p3,dim(data)[1],1)
+colnames(posterior_hitting_ability_p3) <- c("Batting Average")
+summary(posterior_hitting_ability_p3)
+```
+ 
+```{r 4.4}
+# histogram (Problem 3)
+hist(posterior_hitting_ability_p3,main=expression("Posterior "~p[i]),
+     xlab="Batting Average",breaks=25)
+```
+
+\pagebreak
+
+# Problem 6.5 (nonpitchers)
+The MSE of the estimates from Problem 6.2 (nonpitchers) is slightly larger than the MSE of the estimates from Problem 6.3 (nonpitchers). We believe that the reason for this is because the variance of the estimates from Problem 6.3 (nonpitchers) is smaller than the variance of the estimates from Problem 6.2 (nonpitchers) and the biases of the estimates from Problem 6.2 (nonpitchers) and 6.3 (nonpitchers) are similar based on the information and histograms in Problem 6.4 (nonpitchers).
+
+```{r 5}
+data_hitting_ability.2 <- matrix(0,dim(data)[1],1)
+colnames(data_hitting_ability.2) <- c("Batting Average")
+
+for (i in 1:dim(data)[1]) {
+  data_hitting_ability.2[i,1] <- data$H.2[i]/data$AB.2[i]
+}
+
+#MSE
+mse2 <- sum((posterior_hitting_ability_p2-data_hitting_ability.2)^2)/nrow(data) 
+mse3 <- sum((posterior_hitting_ability_p3-data_hitting_ability.2)^2)/nrow(data)
+MSE <- matrix(c(mse2,mse3),1,2)
+rownames(MSE) <- c("MSE")
+colnames(MSE) <- c("Problem 6.2","Problem 6.3")
+MSE
+```
